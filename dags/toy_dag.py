@@ -12,7 +12,7 @@ default_args = {
     "email_on_failure": False,
     "email_on_retry": False,
     "retries": 1,
-    "retry_delay": timedelta(minutes=5),
+    "retry_delay": timedelta(minutes=5)
     # 'queue': 'bash_queue',
     # 'pool': 'backfill',
     # 'priority_weight': 10,
@@ -25,7 +25,7 @@ def parsing():
 def processing():
     return True
 
-with DAG("toy_dag", default_args=default_args, schedule_interval="*/5 * * * *") as dag:
+with DAG("toy_dag", default_args=default_args, schedule_interval="*/5 * * * *", catchup=False) as dag:
     t1 = PythonOperator(task_id="parsing", python_callable=parsing)
     t2 = PythonOperator(task_id="processing", python_callable=processing)
     t3 = BashOperator(task_id="storing", bash_command="exit 0")
