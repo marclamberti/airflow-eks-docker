@@ -86,7 +86,7 @@ COPY unittests/ ${AIRFLOW_USER_HOME}/unittests
 
 EXPOSE 8080 5555 8793
 
-# USER airflow
+USER root
 WORKDIR ${AIRFLOW_USER_HOME}
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["webserver"]
