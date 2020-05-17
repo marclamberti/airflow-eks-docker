@@ -17,6 +17,7 @@ ARG AIRFLOW_USER_HOME=/usr/local/airflow
 ARG AIRFLOW_DEPS="kubernetes,s3"
 ARG PYTHON_DEPS=""
 ENV AIRFLOW_HOME=${AIRFLOW_USER_HOME}
+ENV PYTHONPATH=${AIRFLOW_HOME}/config/
 
 # Define en_US.
 ENV LANGUAGE en_US.UTF-8
@@ -77,11 +78,11 @@ RUN set -ex \
         /usr/share/doc-base
 
 COPY script/entrypoint.sh /entrypoint.sh
-COPY airflow.cfg ${AIRFLOW_USER_HOME}/airflow.cfg
-COPY unittests.cfg ${AIRFLOW_USER_HOME}/unittests.cfg
-COPY config/ ${AIRFLOW_USER_HOME}/config
-COPY dags/ ${AIRFLOW_USER_HOME}/dags
-COPY unittests/ ${AIRFLOW_USER_HOME}/unittests
+COPY airflow.cfg ${AIRFLOW_HOME}/airflow.cfg
+COPY unittests.cfg ${AIRFLOW_HOME}/unittests.cfg
+COPY config/ ${AIRFLOW_HOME}/config
+COPY dags/ ${AIRFLOW_HOME}/dags
+COPY unittests/ ${AIRFLOW_HOME}/unittests
 
 # RUN chown -R airflow: ${AIRFLOW_USER_HOME}
 
