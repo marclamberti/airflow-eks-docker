@@ -77,10 +77,9 @@ RUN set -ex \
         /usr/share/doc-base
 
 COPY script/entrypoint.sh /entrypoint.sh
-COPY config/airflow.cfg ${AIRFLOW_USER_HOME}/airflow.cfg
-COPY config/unittests.cfg ${AIRFLOW_USER_HOME}/unittests.cfg
-RUN mkdir ${AIRFLOW_USER_HOME}/config/ && touch ${AIRFLOW_USER_HOME}/config/__init__.py
-COPY config/logging_config.py ${AIRFLOW_USER_HOME}/config/logging_config.py
+COPY airflow.cfg ${AIRFLOW_USER_HOME}/airflow.cfg
+COPY unittests.cfg ${AIRFLOW_USER_HOME}/unittests.cfg
+COPY config/ ${AIRFLOW_USER_HOME}/config
 COPY dags/ ${AIRFLOW_USER_HOME}/dags
 COPY unittests/ ${AIRFLOW_USER_HOME}/unittests
 
