@@ -1,135 +1,110 @@
 #!/usr/bin/env bash
-
-# User-provided configuration must always be respected.
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
 #
-# Therefore, this script must only derives Airflow AIRFLOW__ variables from other variables
-# when the user did not provide their own configuration.
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
-TRY_LOOP="20"
+# Might be empty
+AIRFLOW_COMMAND="${1}"
 
-# Global defaults and back-compat
-: "${AIRFLOW_HOME:="/usr/local/airflow"}"
-: "${AIRFLOW__CORE__FERNET_KEY:=${FERNET_KEY:=$(python -c "from cryptography.fernet import Fernet; FERNET_KEY = Fernet.generate_key().decode(); print(FERNET_KEY)")}}"
-: "${AIRFLOW__CORE__EXECUTOR:=${EXECUTOR:-Sequential}Executor}"
+set -euo pipefail
 
-# Load DAGs examples (default: Yes)
-if [[ -z "$AIRFLOW__CORE__LOAD_EXAMPLES" && "${LOAD_EX:=n}" == n ]]; then
-  AIRFLOW__CORE__LOAD_EXAMPLES=False
-fi
+function verify_db_connection {
+    DB_URL="${1}"
 
-export \
-  AIRFLOW_HOME \
-  AIRFLOW__CORE__EXECUTOR \
-  AIRFLOW__CORE__FERNET_KEY \
-  AIRFLOW__CORE__LOAD_EXAMPLES \
+    DB_CHECK_MAX_COUNT=${MAX_DB_CHECK_COUNT:=20}
+    DB_CHECK_SLEEP_TIME=${DB_CHECK_SLEEP_TIME:=3}
 
-# Install custom python package if requirements.txt is present
-if [ -e "/requirements.txt" ]; then
-    $(command -v pip) install --user -r /requirements.txt
-fi
+    local DETECTED_DB_BACKEND=""
+    local DETECTED_DB_HOST=""
+    local DETECTED_DB_PORT=""
 
-wait_for_port() {
-  local name="$1" host="$2" port="$3"
-  local j=0
-  while ! nc -z "$host" "$port" >/dev/null 2>&1 < /dev/null; do
-    j=$((j+1))
-    if [ $j -ge $TRY_LOOP ]; then
-      echo >&2 "$(date) - $host:$port still not reachable, giving up"
-      exit 1
+
+    if [[ ${DB_URL} != sqlite* ]]; then
+        # Auto-detect DB parameters
+        [[ ${DB_URL} =~ ([^:]*)://([^@/]*)@?([^/:]*):?([0-9]*)/([^\?]*)\??(.*) ]] && \
+            DETECTED_DB_BACKEND=${BASH_REMATCH[1]} &&
+            # Not used USER match
+            DETECTED_DB_HOST=${BASH_REMATCH[3]} &&
+            DETECTED_DB_PORT=${BASH_REMATCH[4]} &&
+            # Not used SCHEMA match
+            # Not used PARAMS match
+
+        echo DB_BACKEND="${DB_BACKEND:=${DETECTED_DB_BACKEND}}"
+
+        if [[ -z "${DETECTED_DB_PORT}" ]]; then
+            if [[ ${DB_BACKEND} == "postgres"* ]]; then
+                DETECTED_DB_PORT=5432
+            elif [[ ${DB_BACKEND} == "mysql"* ]]; then
+                DETECTED_DB_PORT=3306
+            fi
+        fi
+
+        DETECTED_DB_HOST=${DETECTED_DB_HOST:="localhost"}
+
+        # Allow the DB parameters to be overridden by environment variable
+        echo DB_HOST="${DB_HOST:=${DETECTED_DB_HOST}}"
+        echo DB_PORT="${DB_PORT:=${DETECTED_DB_PORT}}"
+
+        while true
+        do
+            set +e
+            LAST_CHECK_RESULT=$(nc -zvv "${DB_HOST}" "${DB_PORT}" >/dev/null 2>&1)
+            RES=$?
+            set -e
+            if [[ ${RES} == 0 ]]; then
+                echo
+                break
+            else
+                echo -n "."
+                DB_CHECK_MAX_COUNT=$((DB_CHECK_MAX_COUNT-1))
+            fi
+            if [[ ${DB_CHECK_MAX_COUNT} == 0 ]]; then
+                echo
+                echo "ERROR! Maximum number of retries (${DB_CHECK_MAX_COUNT}) reached while checking ${DB_BACKEND} db. Exiting"
+                echo
+                break
+            else
+                sleep "${DB_CHECK_SLEEP_TIME}"
+            fi
+        done
+        if [[ ${RES} != 0 ]]; then
+            echo "        ERROR: ${DB_URL} db could not be reached!"
+            echo
+            echo "${LAST_CHECK_RESULT}"
+            echo
+            export EXIT_CODE=${RES}
+        fi
     fi
-    echo "$(date) - waiting for $name... $j/$TRY_LOOP"
-    sleep 5
-  done
 }
 
-# Other executors than SequentialExecutor drive the need for an SQL database, here PostgreSQL is used
-if [ "$AIRFLOW__CORE__EXECUTOR" != "SequentialExecutor" ]; then
-  # Check if the user has provided explicit Airflow configuration concerning the database
-  if [ -z "$AIRFLOW__CORE__SQL_ALCHEMY_CONN" ]; then
-    # Default values corresponding to the default compose files
-    : "${POSTGRES_HOST:="postgres"}"
-    : "${POSTGRES_PORT:="5432"}"
-    : "${POSTGRES_USER:="airflow"}"
-    : "${POSTGRES_PASSWORD:="airflow"}"
-    : "${POSTGRES_DB:="airflow"}"
-    : "${POSTGRES_EXTRAS:-""}"
+# if no DB configured - use sqlite db by default
+AIRFLOW__CORE__SQL_ALCHEMY_CONN="${AIRFLOW__CORE__SQL_ALCHEMY_CONN:="sqlite:///${AIRFLOW_HOME}/airflow.db"}"
 
-    AIRFLOW__CORE__SQL_ALCHEMY_CONN="postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}${POSTGRES_EXTRAS}"
-    export AIRFLOW__CORE__SQL_ALCHEMY_CONN
+verify_db_connection "${AIRFLOW__CORE__SQL_ALCHEMY_CONN}"
 
-    # Check if the user has provided explicit Airflow configuration for the broker's connection to the database
-    if [ "$AIRFLOW__CORE__EXECUTOR" = "CeleryExecutor" ]; then
-      AIRFLOW__CELERY__RESULT_BACKEND="db+postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}${POSTGRES_EXTRAS}"
-      export AIRFLOW__CELERY__RESULT_BACKEND
-    fi
-  else
-    if [[ "$AIRFLOW__CORE__EXECUTOR" == "CeleryExecutor" && -z "$AIRFLOW__CELERY__RESULT_BACKEND" ]]; then
-      >&2 printf '%s\n' "FATAL: if you set AIRFLOW__CORE__SQL_ALCHEMY_CONN manually with CeleryExecutor you must also set AIRFLOW__CELERY__RESULT_BACKEND"
-      exit 1
-    fi
+AIRFLOW__CELERY__BROKER_URL=${AIRFLOW__CELERY__BROKER_URL:=}
 
-    # Derive useful variables from the AIRFLOW__ variables provided explicitly by the user
-    POSTGRES_ENDPOINT=$(echo -n "$AIRFLOW__CORE__SQL_ALCHEMY_CONN" | cut -d '/' -f3 | sed -e 's,.*@,,')
-    POSTGRES_HOST=$(echo -n "$POSTGRES_ENDPOINT" | cut -d ':' -f1)
-    POSTGRES_PORT=$(echo -n "$POSTGRES_ENDPOINT" | cut -d ':' -f2)
-  fi
-
-  wait_for_port "Postgres" "$POSTGRES_HOST" "$POSTGRES_PORT"
+if [[ -n ${AIRFLOW__CELERY__BROKER_URL} ]] && \
+        [[ ${AIRFLOW_COMMAND} =~ ^(scheduler|worker|flower)$ ]]; then
+    verify_db_connection "${AIRFLOW__CELERY__BROKER_URL}"
 fi
 
-# CeleryExecutor drives the need for a Celery broker, here Redis is used
-if [ "$AIRFLOW__CORE__EXECUTOR" = "CeleryExecutor" ]; then
-  # Check if the user has provided explicit Airflow configuration concerning the broker
-  if [ -z "$AIRFLOW__CELERY__BROKER_URL" ]; then
-    # Default values corresponding to the default compose files
-    : "${REDIS_PROTO:="redis://"}"
-    : "${REDIS_HOST:="redis"}"
-    : "${REDIS_PORT:="6379"}"
-    : "${REDIS_PASSWORD:=""}"
-    : "${REDIS_DBNUM:="1"}"
-
-    # When Redis is secured by basic auth, it does not handle the username part of basic auth, only a token
-    if [ -n "$REDIS_PASSWORD" ]; then
-      REDIS_PREFIX=":${REDIS_PASSWORD}@"
-    else
-      REDIS_PREFIX=
-    fi
-
-    AIRFLOW__CELERY__BROKER_URL="${REDIS_PROTO}${REDIS_PREFIX}${REDIS_HOST}:${REDIS_PORT}/${REDIS_DBNUM}"
-    export AIRFLOW__CELERY__BROKER_URL
-  else
-    # Derive useful variables from the AIRFLOW__ variables provided explicitly by the user
-    REDIS_ENDPOINT=$(echo -n "$AIRFLOW__CELERY__BROKER_URL" | cut -d '/' -f3 | sed -e 's,.*@,,')
-    REDIS_HOST=$(echo -n "$POSTGRES_ENDPOINT" | cut -d ':' -f1)
-    REDIS_PORT=$(echo -n "$POSTGRES_ENDPOINT" | cut -d ':' -f2)
-  fi
-
-  wait_for_port "Redis" "$REDIS_HOST" "$REDIS_PORT"
+if [[ ${AIRFLOW_COMMAND} == "/bin/bash" ]]; then
+   exec "${@}"
 fi
 
-case "$1" in
-  webserver)
-    airflow initdb
-    if [ "$AIRFLOW__CORE__EXECUTOR" = "LocalExecutor" ] || [ "$AIRFLOW__CORE__EXECUTOR" = "SequentialExecutor" ]; then
-      # With the "Local" and "Sequential" executors it should all run in one container.
-      airflow scheduler &
-    fi
-    exec airflow webserver
-    ;;
-  worker|scheduler)
-    # Give the webserver time to run initdb.
-    sleep 10
-    exec airflow "$@"
-    ;;
-  flower)
-    sleep 10
-    exec airflow "$@"
-    ;;
-  version)
-    exec airflow "$@"
-    ;;
-  *)
-    # The command is something like bash, not an airflow subcommand. Just run it in the right environment.
-    exec "$@"
-    ;;
-esac
+# Run the command
+exec airflow "${@}"
