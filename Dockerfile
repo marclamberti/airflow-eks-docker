@@ -1,5 +1,7 @@
 FROM apache/airflow:1.10.10-python3.6
 
+LABEL version="1.0.0"
+
 RUN pip install --user pytest
 
 COPY dags/ ${AIRFLOW_HOME}/dags
