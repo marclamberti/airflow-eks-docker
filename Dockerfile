@@ -1,4 +1,4 @@
-FROM apache/airflow:1.10.10-python3.6
+FROM apache/airflow:1.10.10.1-alpha2-python3.6
 
 RUN pip install --user pytest
 
