@@ -6,7 +6,7 @@ class TestIntegrationSimplePipe:
 
     AIRFLOW_URL = "http://localhost:8080"
 
-    def pause_dag(self, pause):
+    def pause_dag(self, dag_id, pause):
         requests.get("{}/api/experimental/dags/{}/paused/{}".format(self.AIRFLOW_URL, dag_id, pause))
         status = requests.get("{}/api/experimental/dags/{}/paused".format(self.AIRFLOW_URL, dag_id)).content["is_paused"]
         return status
@@ -19,7 +19,7 @@ class TestIntegrationSimplePipe:
         data = '{"execution_date": "%s"' % (execution_date)
         
         # Unpause DAG - Required to trigger it even manually
-        assert self.pause_dag("false") == False, "The DAG {} is still in pause".format(dag_id)
+        assert self.pause_dag(dag_id, "false") == False, "The DAG {} is still in pause".format(dag_id)
 
         # Trigger the DAG
         if requests.post("{}/api/experimental/dags/{}/dag_runs".format(self.AIRFLOW_URL, dag_id), headers=headers, data=data).status_code != 200:
@@ -32,4 +32,4 @@ class TestIntegrationSimplePipe:
         assert is_running == False, "The DAG {} didn't run as expected".format(dag_id)
 
         # pause DAG - Required to trigger it even manually
-        assert self.pause_dag("true") == True, "The DAG {} did get paused as expected".format(dag_id)
+        assert self.pause_dag(dag_id, "true") == True, "The DAG {} did get paused as expected".format(dag_id)

@@ -4,7 +4,7 @@ from airflow.models import DagBag
 class TestDagValidation:
 
     LOAD_SECOND_THRESHOLD = 2
-    REQUIRED_EMAIL = "airflow@airflow.com"
+    REQUIRED_EMAIL = "support@airflow.com"
     EXPECTED_NUMBER_OF_DAGS = 1
 
     def test_import_dags(self, dagbag):
@@ -31,15 +31,6 @@ class TestDagValidation:
             self.LOAD_SECOND_THRESHOLD,
             res
         )
-
-    def test_default_args_email(self, dagbag):
-        """
-            Verify that DAGs have the required email
-            - Check email
-        """
-        for dag_id, dag in dagbag.dags.items():
-            emails = dag.default_args.get('email', [])
-            assert self.REQUIRED_EMAIL in emails, "The mail {0} for sending alerts is missing from the DAG {1}".format(self.REQUIRED_EMAIL, dag_id)
     
     def test_default_args_retries(self, dagbag):
         """
@@ -67,3 +58,8 @@ class TestDagValidation:
         stats = dagbag.dagbag_stats
         dag_num = sum([o.dag_num for o in stats])
         assert dag_num == self.EXPECTED_NUMBER_OF_DAGS, "Wrong number of dags, {0} expected got {1} (Can be due to cycles!)".format(self.EXPECTED_NUMBER_OF_DAGS, dag_num)
+        
+    def test_default_args_email(self, dagbag):
+        for dag_id, dag in dagbag.dags.items():
+            emails = dag.default_args.get('email', [])
+            assert self.REQUIRED_EMAIL in emails, "The email {0} for sending alerts is missing from the DAG {1}".format(self.REQUIRED_EMAIL, dag_id)
