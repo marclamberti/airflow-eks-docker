@@ -1,5 +1,6 @@
 import pytest
 import requests
+import json
 import os
 
 class TestIntegrationSimplePipe:
@@ -8,7 +9,7 @@ class TestIntegrationSimplePipe:
 
     def pause_dag(self, dag_id, pause):
         requests.get("{}/api/experimental/dags/{}/paused/{}".format(self.AIRFLOW_URL, dag_id, pause))
-        status = requests.get("{}/api/experimental/dags/{}/paused".format(self.AIRFLOW_URL, dag_id)).content["is_paused"]
+        status = json.loads(requests.get("{}/api/experimental/dags/{}/paused".format(self.AIRFLOW_URL, dag_id)).content)["is_paused"]
         return status
 
     def test_simple_pipe(self):
@@ -28,7 +29,7 @@ class TestIntegrationSimplePipe:
         # Check if it is running as expected
         is_running = True
         while is_running:
-            is_running = requests.get("{}/api/experimental/dags/{}/dag_runs/{}".format(self.AIRFLOW_URL, dag_id, execution_date)).content["status"]
+            is_running = json.loads(requests.get("{}/api/experimental/dags/{}/dag_runs/{}".format(self.AIRFLOW_URL, dag_id, execution_date)).content)["status"]
         assert is_running == False, "The DAG {} didn't run as expected".format(dag_id)
 
         # pause DAG - Required to trigger it even manually
