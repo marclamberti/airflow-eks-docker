@@ -28,7 +28,6 @@ class TestIntegrationSimplePipe:
             models.log.Log,
             models.taskfail.TaskFail,
             models.taskreschedule.TaskReschedule,
-            models.ImportError
         ]
         
         for table in tables:
