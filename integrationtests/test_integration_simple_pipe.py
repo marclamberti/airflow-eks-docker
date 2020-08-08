@@ -3,6 +3,7 @@ from airflow.api.common.experimental import delete_dag as delete
 from airflow.api.common.experimental.get_dag_run_state import get_dag_run_state
 from airflow.utils import timezone
 from airflow.exceptions import AirflowException
+from airflow.utils.db import provide_session
 from airflow import models
 
 import pytest
@@ -17,14 +18,21 @@ class TestIntegrationSimplePipe:
             is_paused=pause
         )
         
-    def clean_dag(self, dag_id):
+    @provide_session
+    def clean_dag(self, dag_id, session=None):
         """
         Delete all DB records related to the specified Dag.
         """
-        try:
-            count = delete.delete_dag(dag_id)
-        except:
-            pass
+        tables = [
+            models.TaskInstance,
+            models.log.Log,
+            models.taskfail.TaskFail,
+            models.taskreschedule.TaskReschedule,
+            models.ImportError
+        ]
+        
+        for table in tables:
+            session.query(table).filter(table.dag_id == dag_id).delete()
         
     def trigger_dag(self, dag_id, execution_date):
         """
@@ -39,7 +47,7 @@ class TestIntegrationSimplePipe:
         """
         execution_date = timezone.parse(execution_date)
         info = get_dag_run_state(dag_id, execution_date)
-        return json.loads(info)
+        return info
         
     def test_simple_pipe(self):
         """ Simple Pipe should run successfully """
