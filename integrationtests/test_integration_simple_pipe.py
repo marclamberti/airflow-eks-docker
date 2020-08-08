@@ -67,9 +67,9 @@ class TestIntegrationSimplePipe:
         is_running = True
         while is_running:
             dagrun = self.status_dag(dag_id, execution_date)['state']
-            if dagrun['state'] not in ['running', 'success']:
+            if dagrun not in ['running', 'success']:
                 return
-            if dagrun['state'] == 'success':
+            if dagrun == 'success':
                 is_running = False
         assert is_running == False, "The DAG {} didn't run as expected".format(dag_id)
 
