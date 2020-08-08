@@ -9,10 +9,8 @@ class TestIntegrationSimplePipe:
 
     def pause_dag(self, dag_id, pause):
         requests.get("{}/api/experimental/dags/{}/paused/{}".format(self.AIRFLOW_URL, dag_id, pause))
-        status = requests.get("{}/api/experimental/dags/{}/paused".format(self.AIRFLOW_URL, dag_id)).content
-        print("CONTENT")
-        print(status)
-        return status[0]
+        status = requests.get("{}/api/experimental/dags/{}/paused".format(self.AIRFLOW_URL, dag_id)).content["is_paused"]
+        return status
 
     def test_simple_pipe(self):
         """ Simple Pipe should run successfully """
