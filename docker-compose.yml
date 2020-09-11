@@ -18,7 +18,7 @@ services:
             - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
         ports:
             - 8080:8080
-        command: 'webserver'
+        command: 'bash -c "airflow initdb && airflow webserver"'
 
     airflow-scheduler:
         image: ${REPO}:latest
@@ -28,4 +28,4 @@ services:
             - AIRFLOW__CORE__FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
             - AIRFLOW__CORE__EXECUTOR=${EXECUTOR}
             - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-        command: 'scheduler'
+        command: 'bash -c "airflow initdb && airflow scheduler"'
