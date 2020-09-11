@@ -16,16 +16,22 @@ services:
             - AIRFLOW__CORE__FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
             - AIRFLOW__CORE__EXECUTOR=${EXECUTOR} 
             - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+        volumes:
+            - ./entrypoint.sh:entrypoint.sh
         ports:
             - 8080:8080
+        entrypoint: /entrypoint.sh
         command: 'webserver'
 
     airflow-scheduler:
         image: ${REPO}:latest
         depends_on: 
             - airflow-webserver
+        volumes:
+            - ./entrypoint.sh:entrypoint.sh
         environment:
             - AIRFLOW__CORE__FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
             - AIRFLOW__CORE__EXECUTOR=${EXECUTOR}
             - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+        entrypoint: entrypoint.sh
         command: 'scheduler'
